@@ -22,6 +22,9 @@ export default function ConditionPage() {
   const [editingPhoto, setEditingPhoto] = useState<any>(null);
   const [editDateValue, setEditDateValue] = useState<string>('');
 
+  // Viewing Photo State
+  const [viewingPhoto, setViewingPhoto] = useState<any>(null);
+
   // Gallery Filter State
   const [filterMonth, setFilterMonth] = useState(() => {
     const d = new Date();
@@ -388,8 +391,14 @@ export default function ConditionPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {photos.map((p) => (
                 <div key={p.id} className="group relative aspect-[3/4] bg-neutral-900 rounded-lg overflow-hidden border border-neutral-800">
-                  <img src={p.image_url} alt="Record" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-3">
+                  <img 
+                    src={p.image_url} 
+                    alt="Record" 
+                    className="w-full h-full object-cover cursor-pointer group-hover:scale-105 transition-transform duration-500" 
+                    onClick={() => setViewingPhoto(p)}
+                    loading="lazy" 
+                  />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none flex flex-col justify-end p-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-white shadow-sm flex items-center gap-1">
                           <CalendarDays className="w-3 h-3" />
@@ -398,14 +407,14 @@ export default function ConditionPage() {
                         <div className="flex items-center gap-1">
                           <button 
                             onClick={() => handleEditDate(p)}
-                            className="text-white/70 hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-1.5 transition-colors"
+                            className="text-white/70 hover:text-white bg-black/40 hover:bg-black/60 rounded-full p-1.5 transition-colors pointer-events-auto"
                             title="日付を編集"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                           </button>
                           <button 
                             onClick={() => handleDeletePhoto(p)}
-                            className="text-red-400/70 hover:text-red-400 bg-black/40 hover:bg-black/60 rounded-full p-1.5 transition-colors"
+                            className="text-red-400/70 hover:text-red-400 bg-black/40 hover:bg-black/60 rounded-full p-1.5 transition-colors pointer-events-auto"
                             title="画像を削除"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -430,6 +439,80 @@ export default function ConditionPage() {
         </div>
 
       </div>
+
+      {/* Photo Detail Modal */}
+      {viewingPhoto && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm overflow-y-auto" onClick={() => setViewingPhoto(null)}>
+          <div 
+            className="relative w-full max-w-4xl bg-neutral-900 border border-neutral-700 rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row my-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              className="absolute top-3 right-3 z-10 bg-black/50 text-white p-2 rounded-full hover:bg-black/80 transition-colors"
+              onClick={() => setViewingPhoto(null)}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            
+            {/* Image Section */}
+            <div className="w-full md:w-1/2 bg-black flex items-center justify-center max-h-[50vh] md:max-h-[80vh]">
+              <img src={viewingPhoto.image_url} alt="Detail" className="w-full h-full object-contain" />
+            </div>
+            
+            {/* Details Section */}
+            <div className="w-full md:w-1/2 p-6 flex flex-col max-h-[50vh] md:max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center gap-2 text-sm text-neutral-400 mb-4">
+                <CalendarDays className="w-4 h-4" />
+                {parseSafeDate(viewingPhoto.created_at)}
+              </div>
+              
+              <div className="space-y-4">
+                {viewingPhoto.prompt && (
+                  <div>
+                    <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2">AIへの指示内容</h3>
+                    <p className="text-sm text-neutral-300 bg-neutral-800/50 p-3 rounded-lg leading-relaxed">{viewingPhoto.prompt}</p>
+                  </div>
+                )}
+                
+                {viewingPhoto.ai_feedback ? (
+                  <div>
+                    <h3 className="text-xs font-bold text-emerald-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> AI分析結果
+                    </h3>
+                    <div className="text-sm text-neutral-200 bg-emerald-900/10 border border-emerald-500/20 p-4 rounded-lg whitespace-pre-wrap leading-relaxed">
+                      {viewingPhoto.ai_feedback}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2">AI分析結果</h3>
+                    <p className="text-sm text-neutral-500 italic">分析結果はありません</p>
+                  </div>
+                )}
+              </div>
+              
+              <div className="mt-auto pt-8 flex justify-end gap-3">
+                <button 
+                  onClick={() => { setViewingPhoto(null); handleEditDate(viewingPhoto); }}
+                  className="flex items-center gap-1 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-sm transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  日付編集
+                </button>
+                <button 
+                  onClick={() => { setViewingPhoto(null); handleDeletePhoto(viewingPhoto); }}
+                  className="flex items-center gap-1 px-3 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded-lg text-sm transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  削除
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
