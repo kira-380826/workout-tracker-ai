@@ -27,6 +27,7 @@ export default function Home() {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('すべて');
   const [selectedExercise, setSelectedExercise] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     // データを自動読み込み
@@ -43,6 +44,24 @@ export default function Home() {
         setLoading(false);
       });
   }, []);
+
+  // Driveから同期
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch('/api/sync');
+      const resData = await res.json();
+      if (resData.success) {
+        alert(resData.message);
+        window.location.reload(); // 成功したらリロードして最新データを表示
+      } else {
+        alert('同期に失敗しました: ' + (resData.error || '不明なエラー'));
+      }
+    } catch (err) {
+      alert('通信エラーが発生しました。設定が正しいか確認してください。');
+    }
+    setIsSyncing(false);
+  };
 
   // チャット送信
   const handleSendMessage = async () => {
@@ -137,9 +156,19 @@ export default function Home() {
         {/* 左側：ダッシュボード */}
         <div className="lg:col-span-2 space-y-6">
           <section className="bg-neutral-800/50 rounded-2xl border border-neutral-700 p-6 backdrop-blur-sm">
-            <div className="flex items-center gap-2 mb-4 text-neutral-300">
-              <Database className="w-5 h-5 text-blue-400" />
-              <h2 className="text-xl font-semibold">分析ダッシュボード</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2 text-neutral-300">
+                <Database className="w-5 h-5 text-blue-400" />
+                <h2 className="text-xl font-semibold">分析ダッシュボード</h2>
+              </div>
+              <button 
+                onClick={handleSync}
+                disabled={isSyncing}
+                className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Activity className={`w-4 h-4 ${isSyncing ? 'animate-spin' : 'text-emerald-400'}`} />
+                {isSyncing ? '同期中...' : 'Driveから同期'}
+              </button>
             </div>
             
             {loading ? (
