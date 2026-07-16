@@ -19,12 +19,11 @@ export async function GET() {
     }
 
     // Google Drive APIの初期化
-    const auth = new google.auth.JWT(
-      clientEmail,
-      undefined,
-      privateKey,
-      ['https://www.googleapis.com/auth/drive.readonly']
-    );
+    const auth = new google.auth.JWT({
+      email: clientEmail,
+      key: privateKey,
+      scopes: ['https://www.googleapis.com/auth/drive.readonly']
+    });
 
     const drive = google.drive({ version: 'v3', auth });
 
