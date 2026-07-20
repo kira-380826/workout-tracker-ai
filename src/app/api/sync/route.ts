@@ -36,27 +36,32 @@ export async function GET() {
     });
 
     const files = res.data.files || [];
-    let totalSynced = 0;
-
-    for (const file of files) {
-      if (!file.name || !file.id) continue;
-
-      // 日付の抽出 (例: 筋トレ_2026_7_4, 筋トレ2026_7_6)
+    
+    // 1. 並列でテキストを高速ダウンロード (通信時間を大幅に短縮)
+    const textPromises = files.map(async (file) => {
+      if (!file.name || !file.id) return null;
       const dateMatch = file.name.match(/(\d{4})[_\s]*(\d{1,2})[_\s]*(\d{1,2})/);
-      if (!dateMatch) continue;
+      if (!dateMatch) return null;
       
       const year = dateMatch[1];
       const month = dateMatch[2].padStart(2, '0');
       const day = dateMatch[3].padStart(2, '0');
       const dateStr = `${year}-${month}-${day}`;
 
-      // ドキュメントのテキストをダウンロード
-      const exportRes = await drive.files.export({
-        fileId: file.id,
-        mimeType: 'text/plain'
-      });
-      
-      const text = exportRes.data as string;
+      try {
+        const exportRes = await drive.files.export({ fileId: file.id, mimeType: 'text/plain' });
+        return { dateStr, text: exportRes.data as string };
+      } catch (err) {
+        console.error(`Error exporting file ${file.name}:`, err);
+        return null;
+      }
+    });
+
+    const fileContents = (await Promise.all(textPromises)).filter(f => f !== null) as {dateStr: string, text: string}[];
+
+    // 2. Supabaseへの書き込みは直列で行い、競合を防ぐ
+    let totalSynced = 0;
+    for (const { dateStr, text } of fileContents) {
       const records = parseWorkoutText(text, dateStr);
 
       if (records.length > 0) {

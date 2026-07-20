@@ -8,6 +8,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     fetch('/api/data')
@@ -21,6 +22,23 @@ export default function HistoryPage() {
         setLoading(false);
       });
   }, []);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await fetch('/api/sync');
+      const resData = await res.json();
+      if (resData.success) {
+        alert(resData.message);
+        window.location.reload();
+      } else {
+        alert('同期に失敗しました: ' + (resData.error || '不明なエラー'));
+      }
+    } catch (err) {
+      alert('通信エラーが発生しました。設定が正しいか確認してください。');
+    }
+    setIsSyncing(false);
+  };
 
   const getDaysInMonth = (year: number, month: number) => {
     return new Date(year, month + 1, 0).getDate();
@@ -69,9 +87,19 @@ export default function HistoryPage() {
 
   return (
     <main className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
-      <div className="flex items-center gap-2 text-neutral-300">
-        <CalendarIcon className="w-6 h-6 text-blue-400" />
-        <h2 className="text-2xl font-bold">トレーニング履歴</h2>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-neutral-300">
+          <CalendarIcon className="w-6 h-6 text-blue-400" />
+          <h2 className="text-2xl font-bold">トレーニング履歴</h2>
+        </div>
+        <button 
+          onClick={handleSync}
+          disabled={isSyncing}
+          className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-white"
+        >
+          <Activity className={`w-4 h-4 ${isSyncing ? 'animate-spin' : 'text-emerald-400'}`} />
+          {isSyncing ? '同期中...' : 'Driveから同期'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
