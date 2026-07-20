@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, BarElement, TimeScale } from 'chart.js';
 import { Line, Bar, Scatter } from 'react-chartjs-2';
-import { Dumbbell, MessageSquare, Database, Activity } from 'lucide-react';
+import { Dumbbell, MessageSquare, Database, Activity, Maximize2 } from 'lucide-react';
+import { ChartModal } from '@/components/ChartModal';
+import { useWorkoutData } from '@/hooks/useWorkoutData';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend);
 
@@ -20,8 +22,7 @@ const parseSafeDate = (dateStr: string) => {
 };
 
 export default function Home() {
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading: loading } = useWorkoutData();
   const [chatMessage, setChatMessage] = useState('');
   const [chatHistory, setChatHistory] = useState<{role:string, content:string}[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -29,21 +30,12 @@ export default function Home() {
   const [selectedExercise, setSelectedExercise] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [activeChart, setActiveChart] = useState<string | null>(null);
 
   useEffect(() => {
-    // データを自動読み込み
-    fetch('/api/data')
-      .then(res => res.json())
-      .then(resData => {
-        if (resData.data) {
-          setData(resData.data);
-        }
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
-      });
+    import('chartjs-plugin-zoom').then((plugin) => {
+      ChartJS.register(plugin.default);
+    });
   }, []);
 
   // Driveから同期
@@ -113,16 +105,16 @@ export default function Home() {
   // 表示データのフィルタリング（2026/2/28より前のデータを除外）
   const CUTOFF_DATE = new Date(2026, 1, 28).getTime(); // 2026/02/28
   
-  const recentData = data.filter(d => {
+  const recentData = data.filter((d: any) => {
     const dTime = parseSafeDate(d.date);
     return dTime >= CUTOFF_DATE;
   });
 
   const filteredData = selectedCategory === 'すべて' 
     ? recentData 
-    : recentData.filter(d => d.category === selectedCategory);
+    : recentData.filter((d: any) => d.category === selectedCategory);
 
-  const exercisesInCategory = Array.from(new Set(filteredData.map(d => d.exercise)));
+  const exercisesInCategory = Array.from(new Set(filteredData.map((d: any) => d.exercise))) as string[];
   
   // 種目が選択されていない、または別カテゴリに切り替わって存在しない場合は最初の種目を選択
   useEffect(() => {
@@ -131,11 +123,11 @@ export default function Home() {
     }
   }, [selectedCategory, filteredData, selectedExercise]);
 
-  const exerciseData = filteredData.filter(d => d.exercise === selectedExercise && !d.isWarmup);
+  const exerciseData = filteredData.filter((d: any) => d.exercise === selectedExercise && !d.isWarmup);
 
   // --- 1. 日別ボリュームグラフ ---
   const volumeByDate: Record<string, number> = {};
-  filteredData.forEach(d => {
+  filteredData.forEach((d: any) => {
     if (!d.isWarmup) {
       volumeByDate[d.date] = (volumeByDate[d.date] || 0) + (d.weight * d.reps);
     }
@@ -144,7 +136,7 @@ export default function Home() {
 
   // --- 2. 推定1RMグラフ (Epley Formula) ---
   const e1RMByDate: Record<string, number> = {};
-  exerciseData.forEach(d => {
+  exerciseData.forEach((d: any) => {
     const e1RM = d.weight * (1 + d.reps / 30);
     if (!e1RMByDate[d.date] || e1RM > e1RMByDate[d.date]) {
       e1RMByDate[d.date] = Math.round(e1RM * 10) / 10;
@@ -153,24 +145,50 @@ export default function Home() {
   const e1rmDates = Object.keys(e1RMByDate).sort((a, b) => parseSafeDate(a) - parseSafeDate(b));
 
   // --- 3. 重量×回数の散布図データ ---
-  const scatterPoints = exerciseData.map(d => ({
+  const scatterPoints = exerciseData.map((d: any) => ({
     x: d.reps,
     y: d.weight
   }));
 
   // Chart config
-  const chartOptions = {
+  const getChartOptions = (labelsLength: number) => {
+    const minIndex = Math.max(0, labelsLength - 30);
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { 
+        legend: { labels: { color: '#e5e5e5' } },
+        zoom: {
+          pan: { enabled: true, mode: 'x' as const },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' as const }
+        }
+      },
+      scales: {
+        y: { ticks: { color: '#a3a3a3' }, grid: { color: '#404040' }, beginAtZero: true },
+        x: { min: minIndex, max: labelsLength - 1, ticks: { color: '#a3a3a3' }, grid: { color: '#404040' } }
+      }
+    };
+  };
+
+  const scatterOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { labels: { color: '#e5e5e5' } } },
+    plugins: { 
+      legend: { labels: { color: '#e5e5e5' } },
+      zoom: {
+        pan: { enabled: true, mode: 'xy' as const },
+        zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' as const }
+      }
+    },
     scales: {
-      y: { ticks: { color: '#a3a3a3' }, grid: { color: '#404040' } },
-      x: { ticks: { color: '#a3a3a3' }, grid: { color: '#404040' } }
+      y: { title: { display: true, text: '重量 (kg)', color: '#a3a3a3' }, ticks: { color: '#a3a3a3' }, grid: { color: '#404040' } },
+      x: { title: { display: true, text: '回数 (Reps)', color: '#a3a3a3' }, ticks: { color: '#a3a3a3' }, grid: { color: '#404040' } }
     }
   };
 
   return (
-    <main className="max-w-6xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <>
+      <main className="max-w-6xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 左側：ダッシュボード */}
         <div className="lg:col-span-2 space-y-6">
           <section className="bg-neutral-800/50 rounded-2xl border border-neutral-700 p-6 backdrop-blur-sm">
@@ -223,7 +241,10 @@ export default function Home() {
                 {/* ボリュームグラフ */}
                 {volumeDates.length > 0 && (
                   <div className="bg-neutral-900 p-4 rounded-xl border border-neutral-800 mb-6">
-                    <h3 className="text-sm text-neutral-400 mb-2">総ボリューム推移 ({selectedCategory})</h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm text-neutral-400">総ボリューム推移 ({selectedCategory})</h3>
+                      <button onClick={() => setActiveChart('volume')} className="text-neutral-400 hover:text-white p-1 bg-neutral-800 rounded transition-colors"><Maximize2 className="w-4 h-4" /></button>
+                    </div>
                     <div className="h-64 sm:h-80">
                       <Bar 
                         data={{
@@ -236,7 +257,7 @@ export default function Home() {
                             borderWidth: 1,
                           }]
                         }} 
-                        options={chartOptions} 
+                        options={getChartOptions(volumeDates.length)} 
                       />
                     </div>
                   </div>
@@ -268,27 +289,33 @@ export default function Home() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* 推定1RM推移 */}
                       <div>
-                        <h4 className="text-xs text-neutral-400 mb-2 text-center">推定1RM推移 (kg)</h4>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs text-neutral-400">推定1RM推移 (kg)</h4>
+                          <button onClick={() => setActiveChart('e1rm')} className="text-neutral-400 hover:text-white p-1 bg-neutral-800 rounded transition-colors"><Maximize2 className="w-4 h-4" /></button>
+                        </div>
                         <div className="h-64 sm:h-72">
                           <Line 
                             data={{
                               labels: e1rmDates,
                               datasets: [{
                                 label: '推定MAX重量',
-                                data: e1rmDates.map(d => e1RMByDate[d]),
+                                data: e1rmDates.map((d: any) => e1RMByDate[d]),
                                 borderColor: 'rgb(239, 68, 68)',
                                 backgroundColor: 'rgba(239, 68, 68, 0.5)',
                                 tension: 0.3,
                               }]
                             }} 
-                            options={chartOptions} 
+                            options={getChartOptions(e1rmDates.length)} 
                           />
                         </div>
                       </div>
                       
                       {/* 散布図 */}
                       <div>
-                        <h4 className="text-xs text-neutral-400 mb-2 text-center">回数 × 重量 散布図</h4>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs text-neutral-400">回数 × 重量 散布図</h4>
+                          <button onClick={() => setActiveChart('scatter')} className="text-neutral-400 hover:text-white p-1 bg-neutral-800 rounded transition-colors"><Maximize2 className="w-4 h-4" /></button>
+                        </div>
                         <div className="h-64 sm:h-72">
                           <Scatter 
                             data={{
@@ -298,13 +325,7 @@ export default function Home() {
                                 backgroundColor: 'rgba(16, 185, 129, 0.6)',
                               }]
                             }} 
-                            options={{
-                              ...chartOptions,
-                              scales: {
-                                x: { title: { display: true, text: '回数 (Reps)', color: '#a3a3a3' }, ticks: { color: '#a3a3a3' }, grid: { color: '#404040' } },
-                                y: { title: { display: true, text: '重量 (kg)', color: '#a3a3a3' }, ticks: { color: '#a3a3a3' }, grid: { color: '#404040' } }
-                              }
-                            }} 
+                            options={scatterOptions} 
                           />
                         </div>
                       </div>
@@ -370,5 +391,55 @@ export default function Home() {
           </section>
         </div>
       </main>
+
+      <ChartModal isOpen={activeChart === 'volume'} onClose={() => setActiveChart(null)} title={`総ボリューム推移 (${selectedCategory})`}>
+        {volumeDates.length > 0 && (
+          <Bar 
+            data={{
+              labels: volumeDates,
+              datasets: [{
+                label: 'ボリューム (重量×回数)',
+                data: volumeDates.map(date => volumeByDate[date]),
+                backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                borderColor: 'rgb(59, 130, 246)',
+                borderWidth: 1,
+              }]
+            }} 
+            options={getChartOptions(volumeDates.length)} 
+          />
+        )}
+      </ChartModal>
+
+      <ChartModal isOpen={activeChart === 'e1rm'} onClose={() => setActiveChart(null)} title={`推定1RM推移 (${selectedExercise})`}>
+        {e1rmDates.length > 0 && (
+          <Line 
+            data={{
+              labels: e1rmDates,
+              datasets: [{
+                label: '推定MAX重量',
+                data: e1rmDates.map((d: any) => e1RMByDate[d]),
+                borderColor: 'rgb(239, 68, 68)',
+                backgroundColor: 'rgba(239, 68, 68, 0.5)',
+                tension: 0.3,
+              }]
+            }} 
+            options={getChartOptions(e1rmDates.length)} 
+          />
+        )}
+      </ChartModal>
+
+      <ChartModal isOpen={activeChart === 'scatter'} onClose={() => setActiveChart(null)} title={`回数 × 重量 散布図 (${selectedExercise})`}>
+        <Scatter 
+          data={{
+            datasets: [{
+              label: 'トレーニング記録',
+              data: scatterPoints,
+              backgroundColor: 'rgba(16, 185, 129, 0.6)',
+            }]
+          }} 
+          options={scatterOptions} 
+        />
+      </ChartModal>
+    </>
   );
 }

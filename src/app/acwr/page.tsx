@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import { ActivitySquare, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { ActivitySquare, AlertTriangle, CheckCircle, Info, Maximize2 } from 'lucide-react';
+import { ChartModal } from '@/components/ChartModal';
+import { useWorkoutData } from '@/hooks/useWorkoutData';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -18,25 +20,18 @@ const parseSafeDate = (dateStr: string) => {
 };
 
 export default function ACWRPage() {
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading: loading } = useWorkoutData();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    fetch('/api/data')
-      .then(res => res.json())
-      .then(resData => {
-        if (resData.data) setData(resData.data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
-      });
+    import('chartjs-plugin-zoom').then((plugin) => {
+      ChartJS.register(plugin.default);
+    });
   }, []);
 
   // 1. 日別ボリュームの計算
   const volumeByDate: Record<string, number> = {};
-  data.forEach(d => {
+  data.forEach((d: any) => {
     if (!d.isWarmup) {
       // YYYY/M/D -> YYYY-MM-DD
       const [y, m, day] = d.date.split('/');
@@ -116,37 +111,47 @@ export default function ACWRPage() {
     }
   }
 
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { labels: { color: '#e5e5e5' } },
-      tooltip: {
-        callbacks: {
-          afterBody: (context: any) => {
-            const index = context[0].dataIndex;
-            const item = acwrData[index];
-            return `急性負荷: ${item.acute}\n慢性負荷: ${item.chronic}`;
+  const getChartOptions = (labelsLength: number) => {
+    const minIndex = Math.max(0, labelsLength - 30);
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#e5e5e5' } },
+        tooltip: {
+          callbacks: {
+            afterBody: (context: any) => {
+              const index = context[0].dataIndex;
+              const item = acwrData[index];
+              return `急性負荷: ${item.acute}\n慢性負荷: ${item.chronic}`;
+            }
           }
+        },
+        zoom: {
+          pan: { enabled: true, mode: 'x' as const },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' as const }
+        }
+      },
+      scales: {
+        y: {
+          min: 0,
+          max: 2.5,
+          ticks: { color: '#a3a3a3' },
+          grid: { color: '#404040' },
+        },
+        x: { 
+          min: minIndex,
+          max: labelsLength - 1,
+          ticks: { color: '#a3a3a3' }, 
+          grid: { color: '#404040' } 
         }
       }
-    },
-    scales: {
-      y: {
-        min: 0,
-        max: 2.5,
-        ticks: { color: '#a3a3a3' },
-        grid: { color: '#404040' },
-        plotBands: [
-          // スイートスポットを背景色で表現する（Chart.jsの標準プラグインでは難しいため、Annotationの代わりに境界線で目安を示す）
-        ]
-      },
-      x: { ticks: { color: '#a3a3a3' }, grid: { color: '#404040' } }
-    }
+    };
   };
 
   return (
-    <main className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
+    <>
+      <main className="max-w-4xl mx-auto p-4 md:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2 text-neutral-300">
           <ActivitySquare className="w-6 h-6 text-purple-400" />
@@ -187,7 +192,10 @@ export default function ACWRPage() {
             </div>
 
             <div className="bg-neutral-900 p-4 rounded-xl border border-neutral-800 relative">
-              <h3 className="text-lg font-semibold text-neutral-300 mb-4">ACWR 推移グラフ</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-neutral-300">ACWR 推移グラフ</h3>
+                <button onClick={() => setIsModalOpen(true)} className="text-neutral-400 hover:text-white p-1 bg-neutral-800 rounded transition-colors"><Maximize2 className="w-4 h-4" /></button>
+              </div>
               
               {/* 安全ゾーンの背景ハイライト (Tailwindを用いた擬似表現) */}
               <div className="absolute inset-x-4 top-0 bottom-0 pointer-events-none overflow-hidden rounded-xl z-0 hidden md:block">
@@ -201,11 +209,11 @@ export default function ACWRPage() {
               <div className="relative z-10 h-64 sm:h-80">
                 <Line 
                   data={{
-                    labels: acwrData.map(d => d.date),
+                    labels: acwrData.map((d: any) => d.date),
                     datasets: [
                       {
                         label: 'ACWR (Acute:Chronic Workload Ratio)',
-                        data: acwrData.map(d => d.acwr),
+                        data: acwrData.map((d: any) => d.acwr),
                         borderColor: 'rgb(168, 85, 247)',
                         backgroundColor: 'rgba(168, 85, 247, 0.5)',
                         tension: 0.3,
@@ -232,7 +240,7 @@ export default function ACWRPage() {
                       }
                     ]
                   }} 
-                  options={chartOptions} 
+                  options={getChartOptions(acwrData.length)} 
                 />
               </div>
             </div>
@@ -240,10 +248,56 @@ export default function ACWRPage() {
         ) : (
           <p className="text-neutral-400">
             データが不足しています。ACWRを計算するには最低でも過去28日分のトレーニングデータ（ボリューム）が必要です。<br/>
-            H:\マイドライブ\workout_data.json のデータが少ない、または直近の記録がない可能性があります。
+            十分なデータが記録されるまでお待ちください。
           </p>
         )}
       </div>
-    </main>
+
+      </main>
+      <ChartModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="ACWR 推移グラフ">
+        {acwrData.length > 0 && (
+          <div className="relative w-full h-full">
+            <div className="absolute inset-x-4 top-0 bottom-0 pointer-events-none overflow-hidden rounded-xl z-0 hidden md:block">
+              <div className="absolute w-full bg-emerald-500/10 border-y border-emerald-500/20" style={{ bottom: '32%', height: '20%' }}>
+                <span className="absolute right-2 top-1 text-xs text-emerald-500/50">Safe Zone (0.8 - 1.3)</span>
+              </div>
+            </div>
+            <Line 
+              data={{
+                labels: acwrData.map((d: any) => d.date),
+                datasets: [
+                  {
+                    label: 'ACWR (Acute:Chronic Workload Ratio)',
+                    data: acwrData.map((d: any) => d.acwr),
+                    borderColor: 'rgb(168, 85, 247)',
+                    backgroundColor: 'rgba(168, 85, 247, 0.5)',
+                    tension: 0.3,
+                    pointRadius: 2,
+                    borderWidth: 2,
+                  },
+                  {
+                    label: '危険ライン (1.5)',
+                    data: acwrData.map(() => 1.5),
+                    borderColor: 'rgba(239, 68, 68, 0.5)',
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    borderWidth: 1,
+                  },
+                  {
+                    label: '維持ライン (1.0)',
+                    data: acwrData.map(() => 1.0),
+                    borderColor: 'rgba(163, 163, 163, 0.5)',
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    borderWidth: 1,
+                  }
+                ]
+              }} 
+              options={getChartOptions(acwrData.length)} 
+            />
+          </div>
+        )}
+      </ChartModal>
+    </>
   );
 }

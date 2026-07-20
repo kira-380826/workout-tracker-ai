@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, BarElement } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
-import { Layers } from 'lucide-react';
+import { Layers, Maximize2 } from 'lucide-react';
+import { ChartModal } from '@/components/ChartModal';
+import { useWorkoutData } from '@/hooks/useWorkoutData';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend);
 
@@ -37,31 +39,24 @@ const getWeekLabel = (dateTimestamp: number) => {
 };
 
 export default function VolumePage() {
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading: loading } = useWorkoutData();
   const [selectedCategory, setSelectedCategory] = useState('胸');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    fetch('/api/data')
-      .then(res => res.json())
-      .then(resData => {
-        if (resData.data) setData(resData.data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
-      });
+    import('chartjs-plugin-zoom').then((plugin) => {
+      ChartJS.register(plugin.default);
+    });
   }, []);
 
   const filteredData = selectedCategory === 'すべて' 
     ? data 
-    : data.filter(d => d.category === selectedCategory);
+    : data.filter((d: any) => d.category === selectedCategory);
 
   // 週ごとの有効セット数（Hard Sets）を集計
   const weeklySets: Record<string, number> = {};
   
-  filteredData.forEach(d => {
+  filteredData.forEach((d: any) => {
     // アップセットを除外（メインセットのみをカウント）
     if (!d.isWarmup) {
       const timestamp = parseSafeDate(d.date);
@@ -81,34 +76,44 @@ export default function VolumePage() {
     return aDate - bDate;
   });
 
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (context: any) => `有効セット数: ${context.parsed.y} セット`
+  const getChartOptions = (labelsLength: number) => {
+    const minIndex = Math.max(0, labelsLength - 20);
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (context: any) => `有効セット数: ${context.parsed.y} セット`
+          }
+        },
+        zoom: {
+          pan: { enabled: true, mode: 'x' as const },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' as const }
+        }
+      },
+      scales: {
+        y: { 
+          title: { display: true, text: 'セット数', color: '#a3a3a3' },
+          ticks: { color: '#a3a3a3', stepSize: 5 }, 
+          grid: { color: '#404040' },
+          min: 0,
+          suggestedMax: 25
+        },
+        x: { 
+          min: minIndex,
+          max: labelsLength - 1,
+          ticks: { color: '#a3a3a3', maxRotation: 45, minRotation: 45 }, 
+          grid: { display: false } 
         }
       }
-    },
-    scales: {
-      y: { 
-        title: { display: true, text: 'セット数', color: '#a3a3a3' },
-        ticks: { color: '#a3a3a3', stepSize: 5 }, 
-        grid: { color: '#404040' },
-        min: 0,
-        suggestedMax: 25
-      },
-      x: { 
-        ticks: { color: '#a3a3a3', maxRotation: 45, minRotation: 45 }, 
-        grid: { display: false } 
-      }
-    }
+    };
   };
 
   return (
-    <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
+    <>
+      <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
       <section className="bg-neutral-800/50 rounded-2xl border border-neutral-700 p-6 backdrop-blur-sm">
         <div className="flex items-center gap-2 mb-4 text-neutral-300">
           <Layers className="w-6 h-6 text-emerald-400" />
@@ -146,7 +151,10 @@ export default function VolumePage() {
             </div>
 
             <div className="bg-neutral-900 p-4 rounded-xl border border-neutral-800">
-              <h3 className="text-sm text-neutral-400 mb-2">週別 セット数推移 ({selectedCategory})</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm text-neutral-400">週別 セット数推移 ({selectedCategory})</h3>
+                <button onClick={() => setIsModalOpen(true)} className="text-neutral-400 hover:text-white p-1 bg-neutral-800 rounded transition-colors"><Maximize2 className="w-4 h-4" /></button>
+              </div>
               <div className="relative z-10 h-64 sm:h-96">
                 <Bar 
                   data={{
@@ -173,7 +181,7 @@ export default function VolumePage() {
                       }
                     ]
                   }} 
-                  options={chartOptions} 
+                  options={getChartOptions(weeks.length)} 
                 />
               </div>
             </div>
@@ -182,6 +190,39 @@ export default function VolumePage() {
           <p className="text-neutral-400">データが見つかりません。</p>
         )}
       </section>
-    </main>
+
+      </main>
+      <ChartModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={`週別 セット数推移 (${selectedCategory})`}>
+        {weeks.length > 0 && (
+          <Bar 
+            data={{
+              labels: weeks,
+              datasets: [
+                {
+                  label: 'セット数',
+                  data: weeks.map(w => weeklySets[w]),
+                  backgroundColor: weeks.map(w => {
+                    const val = weeklySets[w];
+                    if (selectedCategory === 'すべて') return 'rgba(59, 130, 246, 0.6)';
+                    if (val < 10) return 'rgba(156, 163, 175, 0.5)';
+                    if (val <= 20) return 'rgba(16, 185, 129, 0.6)';
+                    return 'rgba(250, 204, 21, 0.6)';
+                  }),
+                  borderColor: weeks.map(w => {
+                    const val = weeklySets[w];
+                    if (selectedCategory === 'すべて') return 'rgb(59, 130, 246)';
+                    if (val < 10) return 'rgb(156, 163, 175)';
+                    if (val <= 20) return 'rgb(16, 185, 129)';
+                    return 'rgb(250, 204, 21)';
+                  }),
+                  borderWidth: 1,
+                }
+              ]
+            }} 
+            options={getChartOptions(weeks.length)} 
+          />
+        )}
+      </ChartModal>
+    </>
   );
 }
