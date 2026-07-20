@@ -31,7 +31,7 @@ export async function GET() {
     const res = await drive.files.list({
       q: "name contains '筋トレ' and mimeType='application/vnd.google-apps.document' and trashed=false",
       fields: 'files(id, name)',
-      orderBy: 'createdTime desc',
+      orderBy: 'modifiedTime desc',
       pageSize: 50
     });
 
