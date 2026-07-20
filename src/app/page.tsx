@@ -28,6 +28,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState('すべて');
   const [selectedExercise, setSelectedExercise] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     // データを自動読み込み
@@ -61,6 +62,23 @@ export default function Home() {
       alert('通信エラーが発生しました。設定が正しいか確認してください。');
     }
     setIsSyncing(false);
+  };
+
+  // 新しいドキュメントを作成
+  const handleCreateDoc = async () => {
+    setIsCreating(true);
+    try {
+      const res = await fetch('/api/create-doc', { method: 'POST' });
+      const resData = await res.json();
+      if (resData.success && resData.url) {
+        window.open(resData.url, '_blank');
+      } else {
+        alert('作成に失敗しました: ' + (resData.error || '不明なエラー'));
+      }
+    } catch (err) {
+      alert('通信エラーが発生しました。設定が正しいか確認してください。');
+    }
+    setIsCreating(false);
   };
 
   // チャット送信
@@ -161,14 +179,24 @@ export default function Home() {
                 <Database className="w-5 h-5 text-blue-400" />
                 <h2 className="text-xl font-semibold">分析ダッシュボード</h2>
               </div>
-              <button 
-                onClick={handleSync}
-                disabled={isSyncing}
-                className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-              >
-                <Activity className={`w-4 h-4 ${isSyncing ? 'animate-spin' : 'text-emerald-400'}`} />
-                {isSyncing ? '同期中...' : 'Driveから同期'}
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={handleCreateDoc}
+                  disabled={isCreating}
+                  className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-white font-medium shadow-md shadow-red-900/20"
+                >
+                  <Dumbbell className={`w-4 h-4 ${isCreating ? 'animate-spin' : ''}`} />
+                  {isCreating ? '作成中...' : '新しく記録する'}
+                </button>
+                <button 
+                  onClick={handleSync}
+                  disabled={isSyncing}
+                  className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-white"
+                >
+                  <Activity className={`w-4 h-4 ${isSyncing ? 'animate-spin' : 'text-emerald-400'}`} />
+                  {isSyncing ? '同期中...' : 'Driveから同期'}
+                </button>
+              </div>
             </div>
             
             {loading ? (

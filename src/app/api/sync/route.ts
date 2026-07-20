@@ -22,7 +22,7 @@ export async function GET() {
     const auth = new google.auth.JWT({
       email: clientEmail,
       key: privateKey,
-      scopes: ['https://www.googleapis.com/auth/drive.readonly']
+      scopes: ['https://www.googleapis.com/auth/drive']
     });
 
     const drive = google.drive({ version: 'v3', auth });
