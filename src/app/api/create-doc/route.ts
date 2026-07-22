@@ -34,10 +34,12 @@ export async function POST() {
     });
 
     if (existingRes.data.files && existingRes.data.files.length > 0) {
+      const file = existingRes.data.files[0];
+      const url = file.webViewLink || `https://docs.google.com/document/d/${file.id}/edit`;
       // 既に存在する場合はそのリンクを返す
       return NextResponse.json({ 
         success: true, 
-        url: existingRes.data.files[0].webViewLink,
+        url: url,
         message: '既存のドキュメントを開きます'
       });
     }
@@ -74,9 +76,11 @@ export async function POST() {
       fields: 'id, webViewLink'
     });
 
+    const url = doc.data.webViewLink || `https://docs.google.com/document/d/${doc.data.id}/edit`;
+
     return NextResponse.json({ 
       success: true, 
-      url: doc.data.webViewLink,
+      url: url,
       message: '新しいドキュメントを作成しました'
     });
 
