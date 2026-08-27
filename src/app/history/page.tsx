@@ -26,7 +26,7 @@ export default function HistoryPage() {
   const handleSync = async () => {
     setIsSyncing(true);
     try {
-      const res = await fetch('/api/sync');
+      const res = await fetch('/api/sync?full=true');
       const resData = await res.json();
       if (resData.success) {
         alert(resData.message);

@@ -8,9 +8,13 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // ルートのキャッシュを無効化
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const isFullSync = searchParams.get('full') === 'true';
+
     const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
     const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
@@ -27,12 +31,22 @@ export async function GET() {
 
     const drive = google.drive({ version: 'v3', auth });
 
+    // クエリの組み立て
+    let query = "name contains '筋トレ' and mimeType='application/vnd.google-apps.document' and trashed=false";
+    
+    // フル同期でない場合は過去3日分のみ取得
+    if (!isFullSync) {
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      query += ` and modifiedTime > '${threeDaysAgo.toISOString()}'`;
+    }
+
     // 「筋トレ」が含まれるドキュメントを検索
     const res = await drive.files.list({
-      q: "name contains '筋トレ' and mimeType='application/vnd.google-apps.document' and trashed=false",
+      q: query,
       fields: 'files(id, name)',
       orderBy: 'modifiedTime desc',
-      pageSize: 50
+      pageSize: isFullSync ? 50 : 10
     });
 
     const files = res.data.files || [];

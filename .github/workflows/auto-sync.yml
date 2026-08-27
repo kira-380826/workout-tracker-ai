@@ -1,0 +1,17 @@
+name: Auto Sync Workout Data
+
+on:
+  schedule:
+    # 毎時0分に実行 (UTC表記のため、日本の毎時0分にも一致します)
+    - cron: '0 * * * *'
+  workflow_dispatch: # 手動でActionを実行できるようにする
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit Sync API
+        run: |
+          # VercelにデプロイされたアプリのURLを指定してAPIを叩きます
+          # (もしカスタムドメイン等を使用している場合は、URLを変更してください)
+          curl -X GET "https://workout-tracker-ai.vercel.app/api/sync"
