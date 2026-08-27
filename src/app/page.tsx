@@ -334,7 +334,13 @@ export default function Home() {
                 )}
               </>
             ) : (
-              <p className="text-neutral-400">データが見つかりません。H:\マイドライブ\workout_data.json を確認してください。</p>
+              <div className="text-center py-8 text-neutral-400 space-y-2">
+                <p>トレーニングデータが見つかりませんでした。</p>
+                <p className="text-xs text-neutral-500">
+                  ※Supabaseが一時停止（Pause）されている場合は、Supabaseダッシュボードからプロジェクトを再開（Restore）してください。<br/>
+                  または右上の「Driveから同期」ボタンを押してデータを同期してください。
+                </p>
+              </div>
             )}
           </section>
         </div>
